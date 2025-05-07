@@ -2,12 +2,14 @@
 
 #include "account.h"
 #include <stdio.h>
+#define LOG_ERR(fmt, ...) \
+    fprintf(stderr, "[ERROR] " fmt " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
 
 static Account accounts[MAX_ACCOUNTS];
 static int     account_count = 0;
 
 void account_module_init(void) {
-    // 예시로 2개 계좌 초기화
+    // 테스트용 임시 계좌 2개 초기화
     account_count = 2;
     accounts[0].id      = 1001;
     accounts[0].balance = 10000000;
@@ -27,7 +29,10 @@ static int find_index(int id) {
 
 int account_deposit(int id, long amount, long *new_balance) {
     int idx = find_index(id);
-    if (idx < 0) return -2;  // 계좌 없음
+    if (idx < 0){
+	LOG_ERR("account_deposit: account %d not found", id); // 계좌 없음
+    	return -2;
+    }
 
     Account *acc = &accounts[idx];
     pthread_mutex_lock(&acc->mtx);
@@ -39,11 +44,15 @@ int account_deposit(int id, long amount, long *new_balance) {
 
 int account_withdraw(int id, long amount, long *new_balance) {
     int idx = find_index(id);
-    if (idx < 0) return -2;  // 계좌 없음
+    if (idx < 0){
+	LOG_ERR("account_withdraw: account %d not found", id); // 계좌 없음
+	return -2;
+    }
 
     Account *acc = &accounts[idx];
     pthread_mutex_lock(&acc->mtx);
     if (acc->balance < amount) {
+	LOG_ERR("account_withdraw: insufficient funds for account %d (balance=%ld, req=%ld)", id, acc->balance, amount);
         pthread_mutex_unlock(&acc->mtx);
         return -1;  // 잔액 부족
     }

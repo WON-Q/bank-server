@@ -7,14 +7,18 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
+#define LOG_ERR(fmt, ...) \
+    fprintf(stderr, "[ERROR] " fmt " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
 
 #define BUFFER_SIZE 8192
+
 
 void handle_connection(int client_fd) {
     char buffer[BUFFER_SIZE];
     // 1) 요청 읽기
     int bytes_read = read(client_fd, buffer, sizeof(buffer) - 1);
     if (bytes_read <= 0) {
+	LOG_ERR("handle_connection: read failed or connection closed (fd=%d)", client_fd);
         close(client_fd);
         return;
     }
@@ -23,7 +27,8 @@ void handle_connection(int client_fd) {
     // 2) 요청 라인 파싱 (예: "POST /deposit HTTP/1.1")
     char method[16], path[256];
     if (sscanf(buffer, "%15s %255s", method, path) != 2) {
-        close(client_fd);
+        LOG_ERR("handle_connection: invalid request line");
+	close(client_fd);
         return;
     }
     printf("Received request: %s %s\n", method, path);
