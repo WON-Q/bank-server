@@ -10,11 +10,11 @@ void account_module_init(void) {
     // 예시로 2개 계좌 초기화
     account_count = 2;
     accounts[0].id      = 1001;
-    accounts[0].balance = 10000;
+    accounts[0].balance = 10000000;
     pthread_mutex_init(&accounts[0].mtx, NULL);
 
     accounts[1].id      = 1002;
-    accounts[1].balance =  5000;
+    accounts[1].balance =  50000000;
     pthread_mutex_init(&accounts[1].mtx, NULL);
 }
 
