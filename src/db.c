@@ -32,7 +32,7 @@ int db_deposit(int id, long amount, long *new_balance) {
     long bal;
 
     // ——— Raw Query 테스트 (커넥션/쿼리/결과 확인) ———
-    if (mysql_query(conn, "SELECT balance, id FROM accounts WHERE id = 1001")) {
+    if (mysql_query(conn, "SELECT id, balance FROM accounts WHERE id = 1001")) {
         fprintf(stderr, "[RAW TEST ERROR] mysql_query failed: %s\n",
                 mysql_error(conn));
     } else {
