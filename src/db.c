@@ -31,6 +31,28 @@ int db_deposit(int id, long amount, long *new_balance) {
     MYSQL_BIND bind[2];
     long bal;
 
+    // ——— Raw Query 테스트 (커넥션/쿼리/결과 확인) ———
+    if (mysql_query(conn, "SELECT balance, id FROM accounts WHERE id = 1001")) {
+        fprintf(stderr, "[RAW TEST ERROR] mysql_query failed: %s\n",
+                mysql_error(conn));
+    } else {
+        MYSQL_RES *res = mysql_store_result(conn);
+        if (!res) {
+            fprintf(stderr, "[RAW TEST ERROR] mysql_store_result failed: %s\n",
+                    mysql_error(conn));
+        } else {
+            MYSQL_ROW row = mysql_fetch_row(res);
+            if (!row) {
+                fprintf(stderr, "[RAW TEST INFO] no row for id=1001\n");
+            } else {
+                fprintf(stderr, "[RAW TEST INFO] row id=%s, balance=%s\n",
+                        row[0], row[1]);
+            }
+            mysql_free_result(res);
+        }
+    }
+    // ——————————————————————————————————————————————
+
     if (mysql_query(conn, "START TRANSACTION")) {
         fprintf(stderr, "[DB ERROR] START TRANSACTION 실패: %s\n",
                 mysql_error(conn));
