@@ -6,7 +6,7 @@ BASE_URL="http://localhost:9090"
 start_server() {
   ./bank_server & SERVER_PID=$!
   # 서버가 완전히 실행될 때까지 sleep 적용
-  sleep 0.1
+  sleep 1
 }
 
 stop_server() {
