@@ -1,5 +1,8 @@
+// src/db.c
+
 #include "db.h"
-#include <mysql/mysql.h>
+#include <string.h>
+#include <mysql.h>
 #include <stdio.h>
 
 static MYSQL *conn = NULL;
