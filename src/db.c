@@ -17,7 +17,8 @@ bool db_init(const char *host, const char *user,
         return false;
     }
     if (!mysql_real_connect(conn, host, user, pw, db, port, NULL, 0)) {
-        fprintf(stderr, "[ERROR] mysql_real_connect: %s\n", mysql_error(conn));
+        fprintf(stderr, "[ERROR] mysql_real_connect: %s\n",
+                mysql_error(conn));
         return false;
     }
     return true;
@@ -30,17 +31,17 @@ int db_deposit(int id, long amount, long *new_balance) {
 
     // 트랜잭션 시작
     if (mysql_query(conn, "START TRANSACTION")) {
-        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n", mysql_error(conn));
+        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n",
+                mysql_error(conn));
         return -1;
     }
 
-    // 1) SELECT … FOR UPDATE
+    // (A) SELECT … FOR UPDATE
     const char *sql_select =
         "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select));
 
-    // (A) 파라미터 바인딩
     {
         MYSQL_BIND param[1];
         memset(param, 0, sizeof(param));
@@ -49,8 +50,6 @@ int db_deposit(int id, long amount, long *new_balance) {
         param[0].buffer_length = sizeof(id);
         mysql_stmt_bind_param(stmt, param);
     }
-
-    // (B) 결과 바인딩
     {
         MYSQL_BIND result[1];
         memset(result, 0, sizeof(result));
@@ -62,14 +61,13 @@ int db_deposit(int id, long amount, long *new_balance) {
 
     mysql_stmt_execute(stmt);
     if (mysql_stmt_fetch(stmt) != 0) {
-        // 계좌 없거나 에러
         mysql_stmt_close(stmt);
         mysql_query(conn, "ROLLBACK");
-        return -2;
+        return -2;  // 계좌 없음
     }
     mysql_stmt_close(stmt);
 
-    // 2) UPDATE
+    // (B) UPDATE
     bal += amount;
     const char *sql_update =
         "UPDATE accounts SET balance = ? WHERE id = ?";
@@ -91,7 +89,7 @@ int db_deposit(int id, long amount, long *new_balance) {
     mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
 
-    // 3) COMMIT
+    // (C) COMMIT
     mysql_query(conn, "COMMIT");
 
     *new_balance = bal;
@@ -103,12 +101,14 @@ int db_withdraw(int id, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
     long bal;
 
+    // 트랜잭션 시작
     if (mysql_query(conn, "START TRANSACTION")) {
-        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n", mysql_error(conn));
+        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n",
+                mysql_error(conn));
         return -1;
     }
 
-    // SELECT … FOR UPDATE
+    // (A) SELECT … FOR UPDATE
     const char *sql_select =
         "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
@@ -135,16 +135,17 @@ int db_withdraw(int id, long amount, long *new_balance) {
     if (mysql_stmt_fetch(stmt) != 0) {
         mysql_stmt_close(stmt);
         mysql_query(conn, "ROLLBACK");
-        return -2;
+        return -2;  // 계좌 없음
     }
     mysql_stmt_close(stmt);
 
+    // 잔액 부족 체크
     if (bal < amount) {
         mysql_query(conn, "ROLLBACK");
-        return -1;
+        return -1;  // 잔액 부족
     }
 
-    // UPDATE
+    // (B) UPDATE
     bal -= amount;
     const char *sql_update =
         "UPDATE accounts SET balance = ? WHERE id = ?";
@@ -166,7 +167,9 @@ int db_withdraw(int id, long amount, long *new_balance) {
     mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
 
+    // (C) COMMIT
     mysql_query(conn, "COMMIT");
+
     *new_balance = bal;
     return 0;
 }
