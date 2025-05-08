@@ -21,6 +21,7 @@ bool db_init(const char *host, const char *user,
     return true;
 }
 
+// 입금 트랜잭션
 int db_deposit(int id, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
     MYSQL_BIND bind[2];
@@ -67,3 +68,54 @@ int db_deposit(int id, long amount, long *new_balance) {
     return 0;
 }
 
+// 출금 트랜잭션
+int db_withdraw(int id, long amount, long *new_balance) {
+    MYSQL_STMT *stmt;
+    MYSQL_BIND bind[2];
+    long bal;
+    mysql_query(conn, "START TRANSACTION");
+
+    stmt = mysql_stmt_init(conn);
+    mysql_stmt_prepare(stmt,
+        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE", -1);
+    memset(bind, 0, sizeof(bind));
+    bind[0].buffer_type = MYSQL_TYPE_LONG;
+    bind[0].buffer = &id;
+    mysql_stmt_bind_param(stmt, bind);
+    mysql_stmt_execute(stmt);
+    mysql_stmt_bind_result(stmt, bind);
+    if (mysql_stmt_fetch(stmt) != 0) {
+        mysql_stmt_close(stmt);
+        mysql_query(conn, "ROLLBACK");
+        return -2; // 계좌 없음
+    }
+    bal = *(long*)bind[0].buffer;
+    mysql_stmt_close(stmt);
+
+    if (bal < amount) {
+        mysql_query(conn, "ROLLBACK");
+        return -1; // 잔액 부족
+    }
+
+    bal -= amount;
+    stmt = mysql_stmt_init(conn);
+    mysql_stmt_prepare(stmt,
+        "UPDATE accounts SET balance = ? WHERE id = ?", -1);
+    memset(bind, 0, sizeof(bind));
+    bind[0].buffer_type = MYSQL_TYPE_LONGLONG;
+    bind[0].buffer = &bal;
+    bind[1].buffer_type = MYSQL_TYPE_LONG;
+    bind[1].buffer = &id;
+    mysql_stmt_bind_param(stmt, bind);
+    mysql_stmt_execute(stmt);
+    mysql_stmt_close(stmt);
+
+    mysql_query(conn, "COMMIT");
+    *new_balance = bal;
+    return 0;
+}
+
+// MySQL 커넥션 정리
+void db_close(void) {
+    if (conn) mysql_close(conn);
+}
