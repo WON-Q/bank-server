@@ -31,19 +31,44 @@ int db_deposit(int id, long amount, long *new_balance) {
     MYSQL_BIND bind[2];
     long bal;
 
-    mysql_query(conn, "START TRANSACTION");
+    if (mysql_query(conn, "START TRANSACTION")) {
+        fprintf(stderr, "[DB ERROR] START TRANSACTION 실패: %s\n",
+                mysql_error(conn));
+        return -1;
+    }
 
     // SELECT … FOR UPDATE
     stmt = mysql_stmt_init(conn);
-    mysql_stmt_prepare(stmt,
-        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE", -1);
+    if (mysql_stmt_prepare(stmt, "SELECT balance FROM accounts WHERE id = ? FOR UPDATE", -1)) {
+        fprintf(stderr, "[DB ERROR] stmt_prepare(SELECT) 실패: %s\n",
+                mysql_stmt_error(stmt));
+        mysql_stmt_close(stmt);
+        mysql_query(conn, "ROLLBACK");
+        return -1;
+    }
     memset(bind,0,sizeof(bind));
     bind[0].buffer_type = MYSQL_TYPE_LONG;
     bind[0].buffer      = &id;
-    mysql_stmt_bind_param(stmt, bind);
-    mysql_stmt_execute(stmt);
+    
+    if (mysql_stmt_bind_param(stmt, bind)) {
+        fprintf(stderr, "[DB ERROR] bind_param(SELECT) 실패: %s\n",
+                mysql_stmt_error(stmt));
+    }
+    if (mysql_stmt_execute(stmt)) {
+        fprintf(stderr, "[DB ERROR] execute(SELECT) 실패: %s\n",
+                mysql_stmt_error(stmt));
+    }
+    
     mysql_stmt_bind_result(stmt, bind);
-    if (mysql_stmt_fetch(stmt) != 0) {
+    int fetch_rc = mysql_stmt_fetch(stmt);
+    if (fetch_rc == MYSQL_NO_DATA) {
+        fprintf(stderr, "[DB INFO] SELECT 결과 없음: id=%d\n", id);
+    }
+    else if (fetch_rc != 0) {
+        fprintf(stderr, "[DB ERROR] fetch(SELECT) 실패: %s\n",
+                mysql_stmt_error(stmt));
+    }
+    if (fetch_rc != 0) {
         mysql_stmt_close(stmt);
         mysql_query(conn, "ROLLBACK");
         return -2;  // 계좌 없음
@@ -61,11 +86,23 @@ int db_deposit(int id, long amount, long *new_balance) {
     bind[0].buffer      = &bal;
     bind[1].buffer_type = MYSQL_TYPE_LONG;
     bind[1].buffer      = &id;
-    mysql_stmt_bind_param(stmt, bind);
-    mysql_stmt_execute(stmt);
+    if (mysql_stmt_bind_param(stmt, bind)) {
+        fprintf(stderr, "[DB ERROR] bind_param(UPDATE) 실패: %s\n",
+                mysql_stmt_error(stmt));
+    }
+    if (mysql_stmt_execute(stmt)) {
+        fprintf(stderr, "[DB ERROR] execute(UPDATE) 실패: %s\n",
+                mysql_stmt_error(stmt));
+    }
+
     mysql_stmt_close(stmt);
 
     mysql_query(conn, "COMMIT");
+    if (mysql_query(conn, "COMMIT")) {
+        fprintf(stderr, "[DB ERROR] COMMIT 실패: %s\n",
+                mysql_error(conn));
+        return -1;
+    }
     *new_balance = bal;
     return 0;
 }
