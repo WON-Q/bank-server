@@ -17,8 +17,7 @@ bool db_init(const char *host, const char *user,
         return false;
     }
     if (!mysql_real_connect(conn, host, user, pw, db, port, NULL, 0)) {
-        fprintf(stderr, "[ERROR] mysql_real_connect: %s\n",
-                mysql_error(conn));
+        fprintf(stderr, "[ERROR] mysql_real_connect: %s\n", mysql_error(conn));
         return false;
     }
     return true;
@@ -27,113 +26,73 @@ bool db_init(const char *host, const char *user,
 // 2) 입금: 트랜잭션 + FOR UPDATE + UPDATE
 int db_deposit(int id, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
-    MYSQL_BIND bind[2];
     long bal;
 
-    // Raw Query 테스트
-    if (mysql_query(conn, "SELECT id, balance FROM accounts WHERE id = 1001")) {
-        fprintf(stderr, "[RAW TEST ERROR] mysql_query failed: %s\n",
-                mysql_error(conn));
-    } else {
-        MYSQL_RES *res = mysql_store_result(conn);
-        if (!res) {
-            fprintf(stderr, "[RAW TEST ERROR] mysql_store_result failed: %s\n",
-                    mysql_error(conn));
-        } else {
-            MYSQL_ROW row = mysql_fetch_row(res);
-            if (!row) {
-                fprintf(stderr, "[RAW TEST INFO] no row for id=1001\n");
-            } else {
-                fprintf(stderr, "[RAW TEST INFO] row id=%s, balance=%s\n",
-                        row[0], row[1]);
-            }
-            mysql_free_result(res);
-        }
-    }
-
+    // 트랜잭션 시작
     if (mysql_query(conn, "START TRANSACTION")) {
-        fprintf(stderr, "[DB ERROR] START TRANSACTION 실패: %s\n",
-                mysql_error(conn));
+        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n", mysql_error(conn));
         return -1;
     }
 
     // 1) SELECT … FOR UPDATE
-    const char *sql_select = "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
+    const char *sql_select =
+        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
-    if (mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select))) {
-        fprintf(stderr, "[DB ERROR] stmt_prepare(SELECT) 실패: %s\n",
-                mysql_stmt_error(stmt));
+    mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select));
+
+    // (A) 파라미터 바인딩
+    {
+        MYSQL_BIND param[1];
+        memset(param, 0, sizeof(param));
+        param[0].buffer_type   = MYSQL_TYPE_LONG;
+        param[0].buffer        = &id;
+        param[0].buffer_length = sizeof(id);
+        mysql_stmt_bind_param(stmt, param);
+    }
+
+    // (B) 결과 바인딩
+    {
+        MYSQL_BIND result[1];
+        memset(result, 0, sizeof(result));
+        result[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+        result[0].buffer        = &bal;
+        result[0].buffer_length = sizeof(bal);
+        mysql_stmt_bind_result(stmt, result);
+    }
+
+    mysql_stmt_execute(stmt);
+    if (mysql_stmt_fetch(stmt) != 0) {
+        // 계좌 없거나 에러
         mysql_stmt_close(stmt);
         mysql_query(conn, "ROLLBACK");
-        return -1;
+        return -2;
     }
-    memset(bind, 0, sizeof(bind));
-    bind[0].buffer_type   = MYSQL_TYPE_LONG;
-    bind[0].buffer        = &id;
-    bind[0].buffer_length = sizeof(id);
-    bind[0].is_null       = 0;
-    if (mysql_stmt_bind_param(stmt, bind)) {
-        fprintf(stderr, "[DB ERROR] bind_param(SELECT) 실패: %s\n",
-                mysql_stmt_error(stmt));
-    }
-    if (mysql_stmt_execute(stmt)) {
-        fprintf(stderr, "[DB ERROR] execute(SELECT) 실패: %s\n",
-                mysql_stmt_error(stmt));
-    }
-    mysql_stmt_bind_result(stmt, bind);
-    int fetch_rc = mysql_stmt_fetch(stmt);
-    if (fetch_rc == MYSQL_NO_DATA) {
-        fprintf(stderr, "[DB INFO] SELECT 결과 없음: id=%d\n", id);
-    } else if (fetch_rc != 0) {
-        fprintf(stderr, "[DB ERROR] fetch(SELECT) 실패: %s\n",
-                mysql_stmt_error(stmt));
-    }
-    if (fetch_rc != 0) {
-        mysql_stmt_close(stmt);
-        mysql_query(conn, "ROLLBACK");
-        return -2;  // 계좌 없음
-    }
-    bal = *(long*)bind[0].buffer;
     mysql_stmt_close(stmt);
 
     // 2) UPDATE
     bal += amount;
-    const char *sql_update = "UPDATE accounts SET balance = ? WHERE id = ?";
+    const char *sql_update =
+        "UPDATE accounts SET balance = ? WHERE id = ?";
     stmt = mysql_stmt_init(conn);
-    if (mysql_stmt_prepare(stmt, sql_update, (unsigned long)strlen(sql_update))) {
-        fprintf(stderr, "[DB ERROR] stmt_prepare(UPDATE) 실패: %s\n",
-                mysql_stmt_error(stmt));
-        mysql_stmt_close(stmt);
-        mysql_query(conn, "ROLLBACK");
-        return -1;
+    mysql_stmt_prepare(stmt, sql_update, (unsigned long)strlen(sql_update));
+
+    {
+        MYSQL_BIND upd_param[2];
+        memset(upd_param, 0, sizeof(upd_param));
+        upd_param[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+        upd_param[0].buffer        = &bal;
+        upd_param[0].buffer_length = sizeof(bal);
+        upd_param[1].buffer_type   = MYSQL_TYPE_LONG;
+        upd_param[1].buffer        = &id;
+        upd_param[1].buffer_length = sizeof(id);
+        mysql_stmt_bind_param(stmt, upd_param);
     }
-    memset(bind, 0, sizeof(bind));
-    bind[0].buffer_type   = MYSQL_TYPE_LONGLONG;
-    bind[0].buffer        = &bal;
-    bind[0].buffer_length = sizeof(bal);
-    bind[0].is_null       = 0;
-    bind[1].buffer_type   = MYSQL_TYPE_LONG;
-    bind[1].buffer        = &id;
-    bind[1].buffer_length = sizeof(id);
-    bind[1].is_null       = 0;
-    if (mysql_stmt_bind_param(stmt, bind)) {
-        fprintf(stderr, "[DB ERROR] bind_param(UPDATE) 실패: %s\n",
-                mysql_stmt_error(stmt));
-    }
-    if (mysql_stmt_execute(stmt)) {
-        fprintf(stderr, "[DB ERROR] execute(UPDATE) 실패: %s\n",
-                mysql_stmt_error(stmt));
-        mysql_stmt_close(stmt);
-        mysql_query(conn, "ROLLBACK");
-        return -1;
-    }
+
+    mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
 
-    if (mysql_query(conn, "COMMIT")) {
-        fprintf(stderr, "[DB ERROR] COMMIT 실패: %s\n",
-                mysql_error(conn));
-        return -1;
-    }
+    // 3) COMMIT
+    mysql_query(conn, "COMMIT");
 
     *new_balance = bal;
     return 0;
@@ -142,43 +101,68 @@ int db_deposit(int id, long amount, long *new_balance) {
 // 3) 출금: 입금과 동일, 다만 잔액 부족 시 ROLLBACK + -1
 int db_withdraw(int id, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
-    MYSQL_BIND bind[2];
     long bal;
 
-    mysql_query(conn, "START TRANSACTION");
+    if (mysql_query(conn, "START TRANSACTION")) {
+        fprintf(stderr, "[DB ERROR] START TRANSACTION: %s\n", mysql_error(conn));
+        return -1;
+    }
 
+    // SELECT … FOR UPDATE
+    const char *sql_select =
+        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
-    mysql_stmt_prepare(stmt,
-        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE", -1);
-    memset(bind,0,sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_LONG;
-    bind[0].buffer      = &id;
-    mysql_stmt_bind_param(stmt, bind);
+    mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select));
+
+    {
+        MYSQL_BIND param[1];
+        memset(param, 0, sizeof(param));
+        param[0].buffer_type   = MYSQL_TYPE_LONG;
+        param[0].buffer        = &id;
+        param[0].buffer_length = sizeof(id);
+        mysql_stmt_bind_param(stmt, param);
+    }
+    {
+        MYSQL_BIND result[1];
+        memset(result, 0, sizeof(result));
+        result[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+        result[0].buffer        = &bal;
+        result[0].buffer_length = sizeof(bal);
+        mysql_stmt_bind_result(stmt, result);
+    }
+
     mysql_stmt_execute(stmt);
-    mysql_stmt_bind_result(stmt, bind);
     if (mysql_stmt_fetch(stmt) != 0) {
         mysql_stmt_close(stmt);
         mysql_query(conn, "ROLLBACK");
-        return -2;  // 계좌 없음
+        return -2;
     }
-    bal = *(long*)bind[0].buffer;
     mysql_stmt_close(stmt);
 
     if (bal < amount) {
         mysql_query(conn, "ROLLBACK");
-        return -1;  // 잔액 부족
+        return -1;
     }
 
+    // UPDATE
     bal -= amount;
+    const char *sql_update =
+        "UPDATE accounts SET balance = ? WHERE id = ?";
     stmt = mysql_stmt_init(conn);
-    mysql_stmt_prepare(stmt,
-        "UPDATE accounts SET balance = ? WHERE id = ?", -1);
-    memset(bind,0,sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_LONGLONG;
-    bind[0].buffer      = &bal;
-    bind[1].buffer_type = MYSQL_TYPE_LONG;
-    bind[1].buffer      = &id;
-    mysql_stmt_bind_param(stmt, bind);
+    mysql_stmt_prepare(stmt, sql_update, (unsigned long)strlen(sql_update));
+
+    {
+        MYSQL_BIND upd_param[2];
+        memset(upd_param, 0, sizeof(upd_param));
+        upd_param[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+        upd_param[0].buffer        = &bal;
+        upd_param[0].buffer_length = sizeof(bal);
+        upd_param[1].buffer_type   = MYSQL_TYPE_LONG;
+        upd_param[1].buffer        = &id;
+        upd_param[1].buffer_length = sizeof(id);
+        mysql_stmt_bind_param(stmt, upd_param);
+    }
+
     mysql_stmt_execute(stmt);
     mysql_stmt_close(stmt);
 
