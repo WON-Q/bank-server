@@ -47,8 +47,10 @@ int db_deposit(int id, long amount, long *new_balance) {
         return -1;
     }
     memset(bind,0,sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_LONG;
-    bind[0].buffer      = &id;
+    bind[0].buffer_type   = MYSQL_TYPE_LONG;
+    bind[0].buffer        = &id;
+    bind[0].buffer_length = sizeof(id);
+    bind[0].is_null	  = 0;
     
     if (mysql_stmt_bind_param(stmt, bind)) {
         fprintf(stderr, "[DB ERROR] bind_param(SELECT) 실패: %s\n",
@@ -76,28 +78,37 @@ int db_deposit(int id, long amount, long *new_balance) {
     bal = *(long*)bind[0].buffer;
     mysql_stmt_close(stmt);
 
-    // 잔액 갱신
+    // UPDATE(잔액 갱신)
     bal += amount;
     stmt = mysql_stmt_init(conn);
-    mysql_stmt_prepare(stmt,
-        "UPDATE accounts SET balance = ? WHERE id = ?", -1);
-    memset(bind,0,sizeof(bind));
-    bind[0].buffer_type = MYSQL_TYPE_LONGLONG;
-    bind[0].buffer      = &bal;
-    bind[1].buffer_type = MYSQL_TYPE_LONG;
-    bind[1].buffer      = &id;
+    if (mysql_stmt_prepare(stmt, "UPDATE accounts SET balance = ? WHERE id = ?", -1)) {
+    	fprintf(stderr, "[DB ERROR] stmt_prepare(UPDATE) 실패: %s\n", mysql_stmt_error(stmt));
+        mysql_stmt_close(stmt);
+        mysql_query(conn, "ROLLBACK");
+        return -1;
+    }
+    memset(bind, 0, sizeof(bind));
+    bind[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+    bind[0].buffer        = &bal;
+    bind[0].buffer_length = sizeof(bal);
+    bind[0].is_null       = 0;
+    bind[1].buffer_type   = MYSQL_TYPE_LONG;
+    bind[1].buffer        = &id;
+    bind[1].buffer_length = sizeof(id);
+    bind[1].is_null       = 0;
+
     if (mysql_stmt_bind_param(stmt, bind)) {
-        fprintf(stderr, "[DB ERROR] bind_param(UPDATE) 실패: %s\n",
-                mysql_stmt_error(stmt));
+        fprintf(stderr, "[DB ERROR] bind_param(UPDATE) 실패: %s\n", mysql_stmt_error(stmt));
     }
     if (mysql_stmt_execute(stmt)) {
-        fprintf(stderr, "[DB ERROR] execute(UPDATE) 실패: %s\n",
-                mysql_stmt_error(stmt));
+        fprintf(stderr, "[DB ERROR] execute(UPDATE) 실패: %s\n", mysql_stmt_error(stmt));
+	mysql_stmt_close(stmt);
+	mysql_query(conn, "ROLLBACK");
+	return -1;
     }
 
     mysql_stmt_close(stmt);
 
-    mysql_query(conn, "COMMIT");
     if (mysql_query(conn, "COMMIT")) {
         fprintf(stderr, "[DB ERROR] COMMIT 실패: %s\n",
                 mysql_error(conn));
