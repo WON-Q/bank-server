@@ -1,64 +1,32 @@
 // src/account.c
 
 #include "account.h"
+#include "db.h"
 #include <stdio.h>
-#define LOG_ERR(fmt, ...) \
-    fprintf(stderr, "[ERROR] " fmt " (%s:%d)\n", ##__VA_ARGS__, __FILE__, __LINE__)
+#include <stdlib.h>
 
-static Account accounts[MAX_ACCOUNTS];
-static int     account_count = 0;
-
+// 프로그램 기동 시 한 번만 호출됩니다.
+// 내부에서 db_init()으로 MySQL 커넥션을 맺습니다.
 void account_module_init(void) {
-    // 테스트용 임시 계좌 2개 초기화
-    account_count = 2;
-    accounts[0].id      = 1001;
-    accounts[0].balance = 10000000;
-    pthread_mutex_init(&accounts[0].mtx, NULL);
-
-    accounts[1].id      = 1002;
-    accounts[1].balance =  50000000;
-    pthread_mutex_init(&accounts[1].mtx, NULL);
-}
-
-static int find_index(int id) {
-    for (int i = 0; i < account_count; ++i) {
-        if (accounts[i].id == id) return i;
+    if (!db_init(
+            "127.0.0.1",   // MySQL 호스트
+            "root",   // MySQL 사용자
+            "zxcasdqwe5",     // MySQL 비밀번호
+            "bank",        // 데이터베이스명
+            3306           // 포트
+        )) {
+        fprintf(stderr, "[FATAL] DB 연결 실패, 프로그램을 종료합니다\n");
+        exit(EXIT_FAILURE);
     }
-    return -1;
 }
 
+// HTTP handler에서 호출: DB에 트랜잭션 단위로 입금 처리
 int account_deposit(int id, long amount, long *new_balance) {
-    int idx = find_index(id);
-    if (idx < 0){
-	LOG_ERR("account_deposit: account %d not found", id); // 계좌 없음
-    	return -2;
-    }
-
-    Account *acc = &accounts[idx];
-    pthread_mutex_lock(&acc->mtx);
-    acc->balance += amount;
-    *new_balance = acc->balance;
-    pthread_mutex_unlock(&acc->mtx);
-    return 0;
+    return db_deposit(id, amount, new_balance);
 }
 
+// HTTP handler에서 호출: DB에 트랜잭션 단위로 출금 처리
 int account_withdraw(int id, long amount, long *new_balance) {
-    int idx = find_index(id);
-    if (idx < 0){
-	LOG_ERR("account_withdraw: account %d not found", id); // 계좌 없음
-	return -2;
-    }
-
-    Account *acc = &accounts[idx];
-    pthread_mutex_lock(&acc->mtx);
-    if (acc->balance < amount) {
-	LOG_ERR("account_withdraw: insufficient funds for account %d (balance=%ld, req=%ld)", id, acc->balance, amount);
-        pthread_mutex_unlock(&acc->mtx);
-        return -1;  // 잔액 부족
-    }
-    acc->balance -= amount;
-    *new_balance = acc->balance;
-    pthread_mutex_unlock(&acc->mtx);
-    return 0;
+    return db_withdraw(id, amount, new_balance);
 }
 
