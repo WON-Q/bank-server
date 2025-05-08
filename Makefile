@@ -1,6 +1,6 @@
 CC       := gcc
-CFLAGS   := -Wall -Wextra -O2 -pthread -Iinclude -Ilib/cJSON
-LDFLAGS  := 
+CFLAGS   := -Wall -Wextra -O2 -pthread -Iinclude -Ilib/cJSON $(shell mysql_config --cflags)
+LDFLAGS  := $(shell mysql_config --libs)
 INCDIR   := include
 SRCDIR   := src
 CJSONDIR := lib/cJSON
@@ -35,4 +35,3 @@ $(OBJDIR):
 
 clean:
 	rm -rf $(OBJDIR) $(TARGET)
-
