@@ -1,6 +1,9 @@
 // src/threadpool.c
 #include "threadpool.h"
 #include "http.h"            // handle_connection() 선언
+#include "db.h"
+
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
