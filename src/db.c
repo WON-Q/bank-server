@@ -5,7 +5,7 @@
 #include <mysql/mysql.h>
 #include <stdio.h>
 
-static MYSQL *conn = NULL;
+static __thread MYSQL *conn = NULL;
 
 // 1) 커넥션 초기화
 bool db_init(const char *host, const char *user,
