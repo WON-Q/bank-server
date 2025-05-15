@@ -5,6 +5,7 @@
 #include <signal.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <mysql/mysql.h>
 
 #include "account.h"
 #include "db.h"           
@@ -24,16 +25,19 @@ void handle_sigint(int signo) {
 }
 
 int main(void) {
-    // 1) SIGINT 핸들러 등록
+    // SIGINT 핸들러 등록
     signal(SIGINT, handle_sigint);
 
-    // 2) 계좌 모듈 초기화 (MySQL 커넥션 연결)
+    // MYSQL 클라이언트 라이브러리 전역 초기화
+    mysql_library_init(0, NULL, NULL);
+
+    // 계좌 모듈 초기화 (MySQL 커넥션 연결)
     account_module_init();
 
-    // 3) 스레드풀 초기화
+    // 스레드풀 초기화
     threadpool_init();
 
-    // 4) 서버 소켓 생성 · 바인드 · 리스닝
+    // 서버 TCP 소켓 생성 · 바인드 · 리스닝
     struct sockaddr_in addr = {
         .sin_family      = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
