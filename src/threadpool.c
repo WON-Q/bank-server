@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <pthread.h>
+#include <mysql/mysql.h>     // mysql_thread_init, mysql_thread_end 선언
 
 // 작업 큐와 포인터
 static Task      queue[QUEUE_SIZE];
@@ -16,6 +17,20 @@ static pthread_t workers[POOL_SIZE];
 
 static void *worker_loop(void *arg) {
     (void)arg;
+
+    // — 워커 스레드 전용 MySQL 초기화 —
+    mysql_thread_init();
+    if (!db_init(
+            "127.0.0.1",   // MySQL 호스트
+            "root",        // 사용자
+            "zxcasdqwe5",  // 비밀번호
+            "bank",        // DB명
+            3306)) {
+        fprintf(stderr, "[FATAL] worker DB init failed\n");
+        mysql_thread_end();
+        return NULL;
+    }
+
     while (1) {
         pthread_mutex_lock(&queue_mtx);
         while (head == tail) {
@@ -29,6 +44,9 @@ static void *worker_loop(void *arg) {
         // 실제 HTTP 처리 함수 호출
         handle_connection(t.client_fd);
     }
+
+    db_close();
+    mysql_thread_end();
     return NULL;
 }
 
