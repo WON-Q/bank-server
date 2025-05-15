@@ -24,8 +24,8 @@ bool db_init(const char *host, const char *user,
     return true;
 }
 
-// 2) 입금: 트랜잭션 + FOR UPDATE + UPDATE
-int db_deposit(int id, long amount, long *new_balance) {
+// 2) 입금 처리 (account_number 기준)
+int db_deposit_by_number(const char *acct_num, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
     long bal;
 
@@ -36,20 +36,22 @@ int db_deposit(int id, long amount, long *new_balance) {
         return -1;
     }
 
-    // (A) SELECT … FOR UPDATE
+    // (A) SELECT balance FOR UPDATE
     const char *sql_select =
-        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
+        "SELECT balance FROM accounts WHERE account_number = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select));
 
+    // 파라미터 바인딩
     {
         MYSQL_BIND param[1];
         memset(param, 0, sizeof(param));
-        param[0].buffer_type   = MYSQL_TYPE_LONG;
-        param[0].buffer        = &id;
-        param[0].buffer_length = sizeof(id);
+        param[0].buffer_type   = MYSQL_TYPE_STRING;
+        param[0].buffer        = (char*)acct_num;
+        param[0].buffer_length = (unsigned long)strlen(acct_num);
         mysql_stmt_bind_param(stmt, param);
     }
+    // 결과 바인딩
     {
         MYSQL_BIND result[1];
         memset(result, 0, sizeof(result));
@@ -70,7 +72,7 @@ int db_deposit(int id, long amount, long *new_balance) {
     // (B) UPDATE
     bal += amount;
     const char *sql_update =
-        "UPDATE accounts SET balance = ? WHERE id = ?";
+        "UPDATE accounts SET balance = ? WHERE account_number = ?";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_update, (unsigned long)strlen(sql_update));
 
@@ -80,9 +82,9 @@ int db_deposit(int id, long amount, long *new_balance) {
         upd_param[0].buffer_type   = MYSQL_TYPE_LONGLONG;
         upd_param[0].buffer        = &bal;
         upd_param[0].buffer_length = sizeof(bal);
-        upd_param[1].buffer_type   = MYSQL_TYPE_LONG;
-        upd_param[1].buffer        = &id;
-        upd_param[1].buffer_length = sizeof(id);
+        upd_param[1].buffer_type   = MYSQL_TYPE_STRING;
+        upd_param[1].buffer        = (char*)acct_num;
+        upd_param[1].buffer_length = (unsigned long)strlen(acct_num);
         mysql_stmt_bind_param(stmt, upd_param);
     }
 
@@ -96,8 +98,8 @@ int db_deposit(int id, long amount, long *new_balance) {
     return 0;
 }
 
-// 3) 출금: 입금과 동일, 다만 잔액 부족 시 ROLLBACK + -1
-int db_withdraw(int id, long amount, long *new_balance) {
+// 3) 출금 처리 (account_number 기준)
+int db_withdraw_by_number(const char *acct_num, long amount, long *new_balance) {
     MYSQL_STMT *stmt;
     long bal;
 
@@ -108,18 +110,18 @@ int db_withdraw(int id, long amount, long *new_balance) {
         return -1;
     }
 
-    // (A) SELECT … FOR UPDATE
+    // (A) SELECT balance FOR UPDATE
     const char *sql_select =
-        "SELECT balance FROM accounts WHERE id = ? FOR UPDATE";
+        "SELECT balance FROM accounts WHERE account_number = ? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_select, (unsigned long)strlen(sql_select));
 
     {
         MYSQL_BIND param[1];
         memset(param, 0, sizeof(param));
-        param[0].buffer_type   = MYSQL_TYPE_LONG;
-        param[0].buffer        = &id;
-        param[0].buffer_length = sizeof(id);
+        param[0].buffer_type   = MYSQL_TYPE_STRING;
+        param[0].buffer        = (char*)acct_num;
+        param[0].buffer_length = (unsigned long)strlen(acct_num);
         mysql_stmt_bind_param(stmt, param);
     }
     {
@@ -148,7 +150,7 @@ int db_withdraw(int id, long amount, long *new_balance) {
     // (B) UPDATE
     bal -= amount;
     const char *sql_update =
-        "UPDATE accounts SET balance = ? WHERE id = ?";
+        "UPDATE accounts SET balance = ? WHERE account_number = ?";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_update, (unsigned long)strlen(sql_update));
 
@@ -158,9 +160,9 @@ int db_withdraw(int id, long amount, long *new_balance) {
         upd_param[0].buffer_type   = MYSQL_TYPE_LONGLONG;
         upd_param[0].buffer        = &bal;
         upd_param[0].buffer_length = sizeof(bal);
-        upd_param[1].buffer_type   = MYSQL_TYPE_LONG;
-        upd_param[1].buffer        = &id;
-        upd_param[1].buffer_length = sizeof(id);
+        upd_param[1].buffer_type   = MYSQL_TYPE_STRING;
+        upd_param[1].buffer        = (char*)acct_num;
+        upd_param[1].buffer_length = (unsigned long)strlen(acct_num);
         mysql_stmt_bind_param(stmt, upd_param);
     }
 
@@ -174,7 +176,45 @@ int db_withdraw(int id, long amount, long *new_balance) {
     return 0;
 }
 
-// 4) 커넥션 종료
+// 4) 잔액 조회 처리
+int db_get_balance(const char *acct_num, long *balance) {
+    MYSQL_STMT *stmt;
+    long bal;
+
+    const char *sql =
+        "SELECT balance FROM accounts WHERE account_number = ?";
+    stmt = mysql_stmt_init(conn);
+    mysql_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
+
+    {
+        MYSQL_BIND param[1];
+        memset(param, 0, sizeof(param));
+        param[0].buffer_type   = MYSQL_TYPE_STRING;
+        param[0].buffer        = (char*)acct_num;
+        param[0].buffer_length = (unsigned long)strlen(acct_num);
+        mysql_stmt_bind_param(stmt, param);
+    }
+    {
+        MYSQL_BIND result[1];
+        memset(result, 0, sizeof(result));
+        result[0].buffer_type   = MYSQL_TYPE_LONGLONG;
+        result[0].buffer        = &bal;
+        result[0].buffer_length = sizeof(bal);
+        mysql_stmt_bind_result(stmt, result);
+    }
+
+    mysql_stmt_execute(stmt);
+    if (mysql_stmt_fetch(stmt) != 0) {
+        mysql_stmt_close(stmt);
+        return -2;  // 계좌 없음
+    }
+    mysql_stmt_close(stmt);
+
+    *balance = bal;
+    return 0;
+}
+
+// 5) 커넥션 종료
 void db_close(void) {
     if (conn) mysql_close(conn);
 }
