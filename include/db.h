@@ -18,30 +18,38 @@ bool db_init(const char *host,
              const char *db,
              unsigned int port);
 
-// 2) 입금 처리
-//    id: 계좌 번호
+// 2) 입금 처리 (account_number 기준)
+//    acct_num: 계좌번호 문자열
 //    amount: 입금액
-//    new_balance: 갱신된 잔액을 저장할 포인터
+//    new_balance: 갱신된 잔액 저장 포인터
 //  → 리턴값:
 //     0  = 성공
 //    -2  = 계좌 없음
 //    -1  = 그 외(DB 오류)
-int db_deposit(int id, long amount, long *new_balance);
+int db_deposit_by_number(const char *acct_num, long amount, long *new_balance);
 
-// 3) 출금 처리
-//    id: 계좌 번호
+// 3) 출금 처리 (account_number 기준)
+//    acct_num: 계좌번호 문자열
 //    amount: 출금액
-//    new_balance: 갱신된 잔액을 저장할 포인터
+//    new_balance: 갱신된 잔액 저장 포인터
 //  → 리턴값:
 //     0  = 성공
 //    -1  = 잔액 부족
 //    -2  = 계좌 없음
 //    -1  = 그 외(DB 오류)
-int db_withdraw(int id, long amount, long *new_balance);
+int db_withdraw_by_number(const char *acct_num, long amount, long *new_balance);
 
-// 4) 종료 처리
+// 4) 잔액 조회 (account_number 기준)
+//    acct_num: 계좌번호 문자열
+//    balance: 조회된 잔액 저장 포인터
+//  → 리턴값:
+//     0  = 성공
+//    -2 = 계좌 없음
+//    -1 = 그 외(DB 오류)
+int db_get_balance(const char *acct_num, long *balance);
+
+// 5) 종료 처리
 //    프로그램 종료 시 호출해서 DB 커넥션을 닫음
 void db_close(void);
 
 #endif // DB_H
-
