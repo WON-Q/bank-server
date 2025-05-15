@@ -44,10 +44,11 @@ void handle_connection(int client_fd) {
     size_t resp_len = 0;
 
     if (strcmp(path, "/deposit") == 0 && strcmp(method, "POST") == 0) {
-        int acct; long amt, new_bal;
-        int rc = parse_request(body, &acct, &amt);
+        char acct_num[32];
+        long amt, new_bal;
+        int rc = parse_tx_request(body, acct_num, sizeof(acct_num), &amt);
         if (rc == 0) {
-            int dep = account_deposit(acct, amt, &new_bal);
+            int dep = account_deposit(acct_num, amt, &new_bal);
             if (dep == 0) {
                 resp_len = snprintf(resp_body, sizeof(resp_body),
                     "{\"status\":\"SUCCESS\",\"balance\":%ld}", new_bal);
@@ -63,10 +64,11 @@ void handle_connection(int client_fd) {
         }
     }
     else if (strcmp(path, "/withdraw") == 0 && strcmp(method, "POST") == 0) {
-        int acct; long amt, new_bal;
-        int rc = parse_request(body, &acct, &amt);
+        char acct_num[32];
+        long amt, new_bal;
+        int rc = parse_tx_request(body, acct_num, sizeof(acct_num), &amt);
         if (rc == 0) {
-            int wd = account_withdraw(acct, amt, &new_bal);
+            int wd = account_withdraw(acct_num, amt, &new_bal);
             if (wd == 0) {
                 resp_len = snprintf(resp_body, sizeof(resp_body),
                     "{\"status\":\"SUCCESS\",\"balance\":%ld}", new_bal);
@@ -74,6 +76,26 @@ void handle_connection(int client_fd) {
                 status_code = 409;
                 resp_len = snprintf(resp_body, sizeof(resp_body),
                     "{\"status\":\"FAIL\",\"reason\":\"Insufficient funds\"}");
+            } else {
+                status_code = 404;
+                resp_len = snprintf(resp_body, sizeof(resp_body),
+                    "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
+            }
+        } else {
+            status_code = 400;
+            resp_len = snprintf(resp_body, sizeof(resp_body),
+                "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
+        }
+    }
+    else if (strcmp(path, "/balance") == 0 && strcmp(method, "POST") == 0) {
+        char acct_num[32];
+        long bal;
+        int rc = parse_balance_request(body, acct_num, sizeof(acct_num));
+        if (rc == 0) {
+            int gb = account_get_balance(acct_num, &bal);
+            if (gb == 0) {
+                resp_len = snprintf(resp_body, sizeof(resp_body),
+                    "{\"status\":\"SUCCESS\",\"balance\":%ld}", bal);
             } else {
                 status_code = 404;
                 resp_len = snprintf(resp_body, sizeof(resp_body),
