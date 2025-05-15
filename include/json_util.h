@@ -4,13 +4,21 @@
 
 #include <stddef.h>
 
-// JSON 요청 바디에서 'account' (int)와 'amount' (long) 값을 파싱합니다.
-// body: JSON 문자열(null-terminated)
-// out_account, out_amount: 파싱된 값을 저장할 포인터
+// 거래 요청 파싱: account_number (문자열) 과 amount (숫자) 추출
 // 반환값:
 //   0  - 성공
 //  -1  - JSON 파싱 실패
 //  -2  - 필드 누락 또는 타입 불일치
-int parse_request(const char *body, int *out_account, long *out_amount);
+int parse_tx_request(const char *body,
+                     char *out_acct_num, size_t max_len,
+                     long *out_amount);
+
+// 잔액 조회 요청 파싱: account_number (문자열) 추출
+// 반환값:
+//   0  - 성공
+//  -1  - JSON 파싱 실패
+//  -2  - 필드 누락 또는 타입 불일치
+int parse_balance_request(const char *body,
+                          char *out_acct_num, size_t max_len);
 
 #endif // JSON_UTIL_H
