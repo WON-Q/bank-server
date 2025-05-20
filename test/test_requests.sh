@@ -2,10 +2,11 @@
 # test/test_requests.sh
 
 BASE_URL="http://localhost:9090"
+TEST_ACCOUNT="1005-001-123456"
 
 start_server() {
   ./bank_server & SERVER_PID=$!
-  # 서버가 완전히 실행될 때까지 sleep 적용
+  # 서버 기동 대기
   sleep 1
 }
 
@@ -14,46 +15,63 @@ stop_server() {
   wait $SERVER_PID 2>/dev/null
 }
 
-# 1) Deposit +500
+echo "▶▶▶ Deposit +500"
 start_server
-echo ">>> Testing deposit success (account 1001, +500)"
-curl -s -X POST "$BASE_URL/deposit" \
+curl -i -X POST "$BASE_URL/deposit" \
      -H "Content-Type: application/json" \
-     -d '{"account":1001,"amount":500}'
+     -d "{
+       \"account_number\":\"$TEST_ACCOUNT\",
+       \"amount\":500
+     }"
 echo -e "\n"
 stop_server
 
-# 2) Withdraw -1000
+echo "▶▶▶ Withdraw -200"
 start_server
-echo ">>> Testing withdraw success (account 1002, -1000)"
-curl -s -X POST "$BASE_URL/withdraw" \
+curl -i -X POST "$BASE_URL/withdraw" \
      -H "Content-Type: application/json" \
-     -d '{"account":1002,"amount":1000}'
+     -d "{
+       \"account_number\":\"$TEST_ACCOUNT\",
+       \"amount\":200
+     }"
 echo -e "\n"
 stop_server
 
-# 3) Withdraw insufficient funds
+echo "▶▶▶ Balance Check"
 start_server
-echo ">>> Testing withdraw insufficient funds (account 1002, -999999999999999)"
-curl -s -X POST "$BASE_URL/withdraw" \
+curl -i -X POST "$BASE_URL/balance" \
      -H "Content-Type: application/json" \
-     -d '{"account":1002,"amount":999999999999999}'
+     -d "{
+       \"account_number\":\"$TEST_ACCOUNT\"
+     }"
 echo -e "\n"
 stop_server
 
-# 4) Invalid JSON
+echo "▶▶▶ Withdraw Insufficient Funds"
 start_server
-echo ">>> Testing deposit invalid JSON (missing fields)"
-curl -s -X POST "$BASE_URL/deposit" \
+curl -i -X POST "$BASE_URL/withdraw" \
      -H "Content-Type: application/json" \
-     -d '{"acct":1001,"amt":500}'
+     -d "{
+       \"account_number\":\"$TEST_ACCOUNT\",
+       \"amount\":999999999
+     }"
 echo -e "\n"
 stop_server
 
-# 5) Unknown endpoint
+echo "▶▶▶ Invalid JSON (missing fields)"
 start_server
-echo ">>> Testing unknown endpoint"
-curl -s -X GET "$BASE_URL/balance"
+curl -i -X POST "$BASE_URL/deposit" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "acct_num":"'"$TEST_ACCOUNT"'",
+       "amt":500
+     }'
+echo -e "\n"
+stop_server
+
+echo "▶▶▶ Unknown Endpoint"
+start_server
+curl -i -X GET "$BASE_URL/unknown"
 echo -e "\n"
 stop_server
 
