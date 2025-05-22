@@ -88,6 +88,7 @@ void handle_connection(int client_fd) {
                     "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
             }
         } else {
+	    LOG_ERR("parse_tx_request error (code=%d), body=%.200s", rc, body);
             status_code = 400;
             resp_len = snprintf(resp_body, sizeof(resp_body),
                 "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
@@ -111,6 +112,7 @@ void handle_connection(int client_fd) {
                     "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
             }
         } else {
+	    LOG_ERR("parse_tx_request error (code=%d), body=%.200s", rc, body);
             status_code = 400;
             resp_len = snprintf(resp_body, sizeof(resp_body),
                 "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
@@ -130,6 +132,7 @@ void handle_connection(int client_fd) {
                     "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
             }
         } else {
+            LOG_ERR("parse_tx_request error (code=%d), body=%.200s", rc, body);
             status_code = 400;
             resp_len = snprintf(resp_body, sizeof(resp_body),
                 "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
