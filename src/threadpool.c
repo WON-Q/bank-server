@@ -60,13 +60,23 @@ void threadpool_init(void) {
     }
 }
 
-void threadpool_add_task(int client_fd) {
+// 작업 큐(백로그 큐)에 client_fd 등록 (accept() 시스템 콜 호출 직후)
+// -> 성공: 0, 작업 큐(백로그 큐)가 다 찼을 시: -1
+int threadpool_add_task(int client_fd) {
     pthread_mutex_lock(&queue_mtx);
+    // 다음 위치가 head랑 같으면 큐 풀이므로 에러
+    int next = (tail + 1) % QUEUE_SIZE;
+    if (next == head) {
+        pthread_mutex_unlock(&queue_mtx);
+        return -1;
+    }
     queue[tail] = (Task){ .client_fd = client_fd };
-    tail = (tail + 1) % QUEUE_SIZE;
+    tail = next;
     pthread_cond_signal(&queue_cond);
     pthread_mutex_unlock(&queue_mtx);
+    return 0;
 }
+
 
 void threadpool_destroy(void) {
     // 필요 시 스레드 종료 로직 추가

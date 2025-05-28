@@ -17,6 +17,7 @@ typedef struct {
 void threadpool_init(void);
 
 // 작업 큐에 client_fd 등록 (accept() 직후 호출)
+// -> 성공 시 0, backlog queue가 다 찼을 시 -1 반환
 void threadpool_add_task(int client_fd);
 
 // 스레드풀 정리 (프로세스 종료 시 필요하면 호출)
