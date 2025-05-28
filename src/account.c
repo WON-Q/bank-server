@@ -8,13 +8,23 @@
 // 프로그램 기동 시 한 번만 호출됩니다.
 // 내부에서 db_init()으로 MySQL 커넥션을 맺습니다.
 void account_module_init(void) {
-    if (!db_init(
-            "127.0.0.1",   // MySQL 호스트
-            "root",   // MySQL 사용자
-            "zxcasdqwe5",     // MySQL 비밀번호
-            "bank",        // 데이터베이스명
-            3306           // 포트
-        )) {
+    // 환경 변수에서 DB 설정 읽기
+    const char *host = getenv("DB_HOST");
+    const char *user = getenv("DB_USER");
+    const char *password = getenv("DB_PASSWORD");
+    const char *database = getenv("DB_NAME");
+    const char *port_str = getenv("DB_PORT");
+    
+    // 기본값 설정
+    if (!host) host = "127.0.0.1";
+    if (!user) user = "root";
+    if (!password) password = "12345";
+    if (!database) database = "bank";
+    int port = port_str ? atoi(port_str) : 3306;
+    
+    printf("Connecting to DB: %s@%s:%d/%s\n", user, host, port, database);
+    
+    if (!db_init(host, user, password, database, port)) {
         fprintf(stderr, "[FATAL] DB 연결 실패, 프로그램을 종료합니다\n");
         exit(EXIT_FAILURE);
     }

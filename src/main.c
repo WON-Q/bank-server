@@ -11,8 +11,6 @@
 #include "db.h"           
 #include "threadpool.h"
 
-#define PORT 9090
-
 static int listen_fd;
 
 // Ctrl+C(SIGINT) 시 안전하게 종료: 소켓 닫고 DB 커넥션 해제
@@ -28,6 +26,10 @@ int main(void) {
     // SIGINT 핸들러 등록
     signal(SIGINT, handle_sigint);
 
+    // 환경 변수에서 포트 번호 읽기
+    const char *port_str = getenv("SERVER_PORT");
+    int port = port_str ? atoi(port_str) : 9090;
+
     // MYSQL 클라이언트 라이브러리 전역 초기화
     mysql_library_init(0, NULL, NULL);
 
@@ -41,7 +43,7 @@ int main(void) {
     struct sockaddr_in addr = {
         .sin_family      = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port        = htons(PORT)
+        .sin_port        = htons(port)
     };
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (listen_fd < 0) {
@@ -56,7 +58,7 @@ int main(void) {
         perror("listen");
         exit(EXIT_FAILURE);
     }
-    printf("Bank server listening on port %d...\n", PORT);
+    printf("Bank server listening on port %d...\n", port);
 
     // 5) 연결 수락 후 스레드풀에 작업 위임
     while (1) {
