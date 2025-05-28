@@ -65,7 +65,18 @@ int main(void) {
             perror("accept");
             continue;
         }
-        threadpool_add_task(client_fd);
+	// 큐 오버플로우 체크: 풀 시 503 응답
+        if (threadpool_add_task(client_fd) < 0) {
+            const char *resp =
+                "HTTP/1.1 503 Service Unavailable\r\n"
+                "Content-Type: application/json\r\n"
+                "Content-Length: 27\r\n"
+                "\r\n"
+                "{\"status\":\"FAIL\",\"reason\":\"Server busy\"}";
+            write(client_fd, resp, strlen(resp));
+            close(client_fd);
+            continue;
+	}
     }
 
     // 종료 전 DB 연결 해제(실제로 도달하진 않지만 혹시 모를 강제 종료 상황에 대비)
