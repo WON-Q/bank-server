@@ -1,0 +1,7 @@
+obj/
+bank_server
+*.log
+.git/
+.gitignore
+README.md
+test/
