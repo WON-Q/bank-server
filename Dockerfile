@@ -2,13 +2,14 @@
 FROM ubuntu:22.04 AS builder
 
 # 필요한 패키지 설치
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --fix-missing \
     gcc \
     make \
     libmysqlclient-dev \
     mysql-client \
     pkg-config \
-    git \
+    git || \
+    (sleep 5 && apt-get update && apt-get install -y gcc make libmysqlclient-dev mysql-client pkg-config git) \
     && rm -rf /var/lib/apt/lists/*
 
 # 작업 디렉토리 설정
