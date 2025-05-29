@@ -14,16 +14,11 @@ RUN apt-get update && apt-get install -y \
 # 작업 디렉토리 설정
 WORKDIR /app
 
+# cJSON 라이브러리 다운로드 (소스 코드 복사 전에)
+RUN git clone https://github.com/DaveGamble/cJSON.git lib/cJSON
+
 # 소스 코드 복사
 COPY . .
-
-# cJSON 서브모듈이 없는 경우를 대비해 직접 다운로드
-RUN if [ ! -f lib/cJSON/cJSON.c ]; then \
-    mkdir -p lib/cJSON && \
-    git clone https://github.com/DaveGamble/cJSON.git /tmp/cJSON && \
-    cp /tmp/cJSON/cJSON.c /tmp/cJSON/cJSON.h lib/cJSON/ && \
-    rm -rf /tmp/cJSON; \
-    fi
 
 # 빌드
 RUN make clean && make
