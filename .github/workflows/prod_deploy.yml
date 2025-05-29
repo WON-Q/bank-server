@@ -1,0 +1,96 @@
+name: 은행 서버 프로덕션 CI/CD 워크플로우
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-docker-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 코드 체크아웃
+        uses: actions/checkout@v3
+        with:
+          submodules: "recursive" # cJSON 서브모듈을 포함하여 체크아웃
+
+      - name: Docker Buildx 설정
+        uses: docker/setup-buildx-action@v2
+
+      - name: Google Cloud 인증 설정
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Google Cloud CLI 설정
+        uses: google-github-actions/setup-gcloud@v1
+
+      - name: GCP Artifact Registry 인증
+        run: |
+          gcloud auth configure-docker asia-northeast3-docker.pkg.dev
+
+      - name: Docker 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            asia-northeast3-docker.pkg.dev/fisa-wonq-order/bank/server:${{ github.event.release.tag_name }}
+            asia-northeast3-docker.pkg.dev/fisa-wonq-order/bank/server:latest
+
+      - name: Slack 알림 (실패 시)
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,action,ref,job,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure()
+
+  update-k8s:
+    needs: build-docker-image
+    runs-on: ubuntu-latest
+    steps:
+      - name: 인프라 레포지토리 체크아웃
+        uses: actions/checkout@v2
+        with:
+          repository: WON-Q/infra
+          token: ${{ secrets.GIT_TOKEN }}
+
+      - name: 이미지 버전 업데이트
+        run: |
+          sed -i 's|asia-northeast3-docker.pkg.dev/fisa-wonq-order/bank/server.*|asia-northeast3-docker.pkg.dev/fisa-wonq-order/bank/server:${{ github.event.release.tag_name }}|' ./manifests/bank/server/deployment.yml
+
+      - name: 변경사항 커밋 및 푸시
+        run: |
+          git config --global user.name "${{ secrets.GIT_USER_NAME }}"
+          git config --global user.email "${{ secrets.GIT_USER_EMAIL }}"
+          git add ./manifests/bank/server/deployment.yml
+          git commit -m "Update: bank/server 이미지 버전 수정 v${{ github.event.release.tag_name }} by GitHub Actions"
+          git push
+
+      - name: Slack 알림 (실패 시)
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,message,commit,author,action,eventName,ref,workflow,job,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: failure()
+
+  slack-notification:
+    needs: [build-docker-image, update-k8s]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack 알림 (항상)
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          fields: repo,action,ref
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        if: always()
