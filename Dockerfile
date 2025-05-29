@@ -16,7 +16,8 @@ RUN apt-get update && apt-get install -y --fix-missing \
 WORKDIR /app
 
 # cJSON 라이브러리 다운로드 (소스 코드 복사 전에)
-RUN git clone https://github.com/DaveGamble/cJSON.git lib/cJSON
+RUN git clone https://github.com/DaveGamble/cJSON.git lib/cJSON && \
+    rm -rf lib/cJSON/.git
 
 # 소스 코드 복사
 COPY . .
