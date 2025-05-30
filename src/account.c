@@ -21,9 +21,14 @@ void account_module_init(void) {
 }
 
 // HTTP handler에서 호출: DB에 트랜잭션 단위로 입금 처리
-int account_deposit(const char *acct_num, long amount, long *new_balance) {
-    return db_deposit_by_number(acct_num, amount, new_balance);
+int account_transfer(const char *sender,
+                     const char *receiver,
+                     long amount,
+                     long *out_sbal,
+                     long *out_rbal) {
+    return db_transfer_by_number(sender, receiver, amount, out_sbal, out_rbal);
 }
+
 
 // HTTP handler에서 호출: DB에 트랜잭션 단위로 출금 처리
 int account_withdraw(const char *acct_num, long amount, long *new_balance) {
