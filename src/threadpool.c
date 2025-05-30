@@ -24,9 +24,9 @@ static void *worker_loop(void *arg) {
     // — 워커 스레드 전용 MySQL 초기화 —
     mysql_thread_init();
     if (!db_init(
-            "127.0.0.1",   // MySQL 호스트
+            "34.47.89.238",   // MySQL 호스트
             "root",        // 사용자
-            "zxcasdqwe5",  // 비밀번호
+            "12345",  // 비밀번호
             "bank",        // DB명
             3306)) {
         fprintf(stderr, "[FATAL] worker DB init failed\n");

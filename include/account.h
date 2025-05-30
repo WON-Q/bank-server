@@ -17,8 +17,12 @@ typedef struct {
 // 모듈 초기화: 뮤텍스 초기화 및 예시 계좌 세팅
 void account_module_init(void);
 
-// 입금 처리 (account_number 기준)
-int account_deposit(const char *acct_num, long amount, long *new_balance);
+// 입금 처리
+int account_transfer(const char *sender,
+                     const char *receiver,
+                     long amount,
+                     long *out_sender_balance,
+                     long *out_receiver_balance);
 
 // 출금 처리 (account_number 기준)
 int account_withdraw(const char *acct_num, long amount, long *new_balance);

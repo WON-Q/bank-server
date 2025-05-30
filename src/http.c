@@ -73,27 +73,48 @@ void handle_connection(int client_fd) {
     int status_code = 200;
     char resp_body[256];
     size_t resp_len = 0;
-
+    
     if (strcmp(path, "/deposit") == 0 && strcmp(method, "POST") == 0) {
-        char acct_num[32]; long amt, new_bal;
-        int rc = parse_tx_request(body, acct_num, sizeof(acct_num), &amt);
+        // 이체(입금) 요청: sender_account, receiver_account, amount
+        char sender[ MAX_ACCT_LEN ], receiver[ MAX_ACCT_LEN ];
+        long amount, sbal, rbal;
+        int rc = parse_transfer_request(
+                   body,
+                   sender,   sizeof(sender),
+                   receiver, sizeof(receiver),
+                   &amount);
         if (rc == 0) {
-            int dep = account_deposit(acct_num, amt, &new_bal);
-            if (dep == 0) {
+            int tr = account_transfer(sender, receiver, amount, &sbal, &rbal);
+            switch (tr) {
+            case 0:
                 resp_len = snprintf(resp_body, sizeof(resp_body),
-                    "{\"status\":\"SUCCESS\",\"balance\":%ld}", new_bal);
-            } else {
+                  "{\"status\":\"SUCCESS\",\"sender_balance\":%ld,\"receiver_balance\":%ld}",
+                  sbal, rbal);
+                break;
+            case -2:
                 status_code = 404;
                 resp_len = snprintf(resp_body, sizeof(resp_body),
-                    "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
+                  "{\"status\":\"FAIL\",\"reason\":\"Account not found\"}");
+                break;
+            case -3:
+                status_code = 409;
+                resp_len = snprintf(resp_body, sizeof(resp_body),
+                  "{\"status\":\"FAIL\",\"reason\":\"Insufficient funds\"}");
+                break;
+            default:
+                status_code = 500;
+                resp_len = snprintf(resp_body, sizeof(resp_body),
+                  "{\"status\":\"FAIL\",\"reason\":\"Internal error\"}");
             }
         } else {
-	    LOG_ERR("parse_tx_request error (code=%d), body=%.200s", rc, body);
+            LOG_ERR("parse_transfer_request error code=%d", rc);
             status_code = 400;
             resp_len = snprintf(resp_body, sizeof(resp_body),
-                "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
+              "{\"status\":\"FAIL\",\"reason\":\"Invalid JSON\"}");
         }
+
     }
+    // 출금 요청
     else if (strcmp(path, "/withdraw") == 0 && strcmp(method, "POST") == 0) {
         char acct_num[32]; long amt, new_bal;
         int rc = parse_tx_request(body, acct_num, sizeof(acct_num), &amt);
