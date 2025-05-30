@@ -48,8 +48,16 @@ int db_withdraw_by_number(const char *acct_num, long amount, long *new_balance);
 //    -1 = 그 외(DB 오류)
 int db_get_balance(const char *acct_num, long *balance);
 
-// 5) 종료 처리
-//    프로그램 종료 시 호출해서 DB 커넥션을 닫음
+// 송금자 → 수금자 이체 처리 (트랜잭션)
+// 0=성공; -1=일반오류; -2=계좌없음; -3=잔액부족
+int db_transfer_by_number(const char *sender,
+                          const char *receiver,
+                          long amount,
+                          long *new_sender_balance,
+                          long *new_receiver_balance);
+
+// 종료 처리
+// 프로그램 종료 시 호출해서 DB 커넥션을 닫음
 void db_close(void);
 
 #endif // DB_H
