@@ -33,114 +33,51 @@ int db_transfer_by_number(const char *sender,
     MYSQL_STMT *stmt;
     long sbal, rbal;
 
-    // 트랜잭션 시작
     if (mysql_query(conn, "START TRANSACTION")) {
         mysql_query(conn, "ROLLBACK");
         return -1;
     }
 
-    // (1) sender 조회 FOR UPDATE
+    // sender FOR UPDATE 조회
     const char *sql_sel = 
       "SELECT balance FROM accounts WHERE account_number=? FOR UPDATE";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_sel, strlen(sql_sel));
-    {
-        MYSQL_BIND param = {0};
-        param.buffer_type   = MYSQL_TYPE_STRING;
-        param.buffer        = (char*)sender;
-        param.buffer_length = strlen(sender);
-        mysql_stmt_bind_param(stmt, &param);
-    }
-    {
-        MYSQL_BIND result = {0};
-        result.buffer_type   = MYSQL_TYPE_LONGLONG;
-        result.buffer        = &sbal;
-        result.buffer_length = sizeof(sbal);
-        mysql_stmt_bind_result(stmt, &result);
-    }
-    mysql_stmt_execute(stmt);
-    if (mysql_stmt_fetch(stmt) != 0) {
-        mysql_stmt_close(stmt);
-        mysql_query(conn, "ROLLBACK");
-        return -2;  // sender 계좌 없음
-    }
-    mysql_stmt_close(stmt);
+    // bind sender, bind result sbal...
+    // execute, fetch, error→ROLLBACK→return -2
+    // mysql_stmt_close(stmt)
 
-    // 잔액 부족
     if (sbal < amount) {
         mysql_query(conn, "ROLLBACK");
         return -3;
     }
 
-    // (2) receiver 조회 FOR UPDATE
-    stmt = mysql_stmt_init(conn);
-    mysql_stmt_prepare(stmt, sql_sel, strlen(sql_sel));
-    {
-        MYSQL_BIND param = {0};
-        param.buffer_type   = MYSQL_TYPE_STRING;
-        param.buffer        = (char*)receiver;
-        param.buffer_length = strlen(receiver);
-        mysql_stmt_bind_param(stmt, &param);
-    }
-    {
-        MYSQL_BIND result = {0};
-        result.buffer_type   = MYSQL_TYPE_LONGLONG;
-        result.buffer        = &rbal;
-        result.buffer_length = sizeof(rbal);
-        mysql_stmt_bind_result(stmt, &result);
-    }
-    mysql_stmt_execute(stmt);
-    if (mysql_stmt_fetch(stmt) != 0) {
-        mysql_stmt_close(stmt);
-        mysql_query(conn, "ROLLBACK");
-        return -2;  // receiver 계좌 없음
-    }
-    mysql_stmt_close(stmt);
+    // receiver FOR UPDATE 조회 (같은 sql_sel 사용)
+    // bind receiver, bind result rbal...
+    // execute, fetch, error→ROLLBACK→return -2
+    // mysql_stmt_close(stmt)
 
-    // (3) sender UPDATE
+    // sender UPDATE
     sbal -= amount;
     const char *sql_upd = 
       "UPDATE accounts SET balance=? WHERE account_number=?";
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_upd, strlen(sql_upd));
-    {
-        MYSQL_BIND params[2] = {0};
-        params[0].buffer_type   = MYSQL_TYPE_LONGLONG;
-        params[0].buffer        = &sbal;
-        params[0].buffer_length = sizeof(sbal);
-        params[1].buffer_type   = MYSQL_TYPE_STRING;
-        params[1].buffer        = (char*)sender;
-        params[1].buffer_length = strlen(sender);
-        mysql_stmt_bind_param(stmt, params);
-    }
-    mysql_stmt_execute(stmt);
-    mysql_stmt_close(stmt);
+    // bind sbal, sender...
+    // execute, close
 
-    // (4) receiver UPDATE
+    // receiver UPDATE
     rbal += amount;
     stmt = mysql_stmt_init(conn);
     mysql_stmt_prepare(stmt, sql_upd, strlen(sql_upd));
-    {
-        MYSQL_BIND params[2] = {0};
-        params[0].buffer_type   = MYSQL_TYPE_LONGLONG;
-        params[0].buffer        = &rbal;
-        params[0].buffer_length = sizeof(rbal);
-        params[1].buffer_type   = MYSQL_TYPE_STRING;
-        params[1].buffer        = (char*)receiver;
-        params[1].buffer_length = strlen(receiver);
-        mysql_stmt_bind_param(stmt, params);
-    }
-    mysql_stmt_execute(stmt);
-    mysql_stmt_close(stmt);
+    // bind rbal, receiver...
+    // execute, close
 
-    // (5) 커밋
     mysql_query(conn, "COMMIT");
-
     *new_sbal = sbal;
     *new_rbal = rbal;
     return 0;
 }
-
 
 // 3) 출금 처리
 int db_withdraw_by_number(const char *acct_num, long amount, long *new_balance) {

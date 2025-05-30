@@ -1,11 +1,36 @@
-// src/json_util.c
-
 #include <stdio.h>
 #include <string.h>
 #include "json_util.h"
 #include "cJSON.h"
 
-// 거래 요청 파싱 (sender_account_number, receiver_amount_number, amount)
+// 1) 단일 계좌 입출금 파싱
+int parse_tx_request(const char *body,
+                     char *out_acct_num, size_t max_len,
+                     long *out_amount) {
+    if (!body || !out_acct_num || !out_amount) {
+        fprintf(stderr, "[ERROR] parse_tx_request: null argument\n");
+        return -1;
+    }
+    cJSON *root = cJSON_Parse(body);
+    if (!root) {
+        fprintf(stderr, "[ERROR] parse_tx_request: JSON parse failed\n");
+        return -1;
+    }
+    cJSON *acct = cJSON_GetObjectItem(root, "account_number");
+    cJSON *amt  = cJSON_GetObjectItem(root, "amount");
+    if (!cJSON_IsString(acct) || !cJSON_IsNumber(amt)) {
+        fprintf(stderr, "[ERROR] parse_tx_request: missing or wrong type\n");
+        cJSON_Delete(root);
+        return -2;
+    }
+    strncpy(out_acct_num, acct->valuestring, max_len - 1);
+    out_acct_num[max_len - 1] = '\0';
+    *out_amount = (long)amt->valuedouble;
+    cJSON_Delete(root);
+    return 0;
+}
+
+// 2) 송금자→수금자 이체 파싱
 int parse_transfer_request(const char *body,
                            char *out_sender, size_t max_sender,
                            char *out_receiver, size_t max_receiver,
@@ -16,7 +41,7 @@ int parse_transfer_request(const char *body,
     }
     cJSON *root = cJSON_Parse(body);
     if (!root) {
-        fprintf(stderr, "[ERROR] parse_transfer_request: parse fail\n");
+        fprintf(stderr, "[ERROR] parse_transfer_request: JSON parse failed\n");
         return -1;
     }
     cJSON *js_sender   = cJSON_GetObjectItem(root, "sender_account");
@@ -25,7 +50,7 @@ int parse_transfer_request(const char *body,
     if (!cJSON_IsString(js_sender) ||
         !cJSON_IsString(js_receiver) ||
         !cJSON_IsNumber(js_amount)) {
-        fprintf(stderr, "[ERROR] parse_transfer_request: missing/wrong type\n");
+        fprintf(stderr, "[ERROR] parse_transfer_request: missing or wrong type\n");
         cJSON_Delete(root);
         return -2;
     }
@@ -38,7 +63,7 @@ int parse_transfer_request(const char *body,
     return 0;
 }
 
-// 잔액 조회 요청 파싱 (account_number)
+// 3) 잔액 조회 파싱
 int parse_balance_request(const char *body,
                           char *out_acct_num, size_t max_len) {
     if (!body || !out_acct_num) {
@@ -61,3 +86,4 @@ int parse_balance_request(const char *body,
     cJSON_Delete(root);
     return 0;
 }
+
