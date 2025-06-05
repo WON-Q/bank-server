@@ -9,7 +9,7 @@
 // 내부에서 db_init()으로 MySQL 커넥션을 맺습니다.
 void account_module_init(void) {
     if (!db_init(
-            "34.47.89.238",   // MySQL 호스트
+            "34.22.64.79",   // MySQL 호스트
             "root",   // MySQL 사용자
             "12345",     // MySQL 비밀번호
             "bank",        // 데이터베이스명
